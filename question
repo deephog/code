@@ -1,0 +1,26 @@
+def build_int8_engine(onnx_file_path, calib, batch_size):
+    with trt.Builder(TRT_LOGGER) as builder, builder.create_network() as network, builder.create_builder_config() as config, trt.CaffeParser() as parser, trt.Runtime(TRT_LOGGER) as runtime:
+        # We set the builder batch size to be the same as the calibrator's, as we use the same batches
+        # during inference. Note that this is not required in general, and inference batch size is
+        # independent of calibration batch size.
+        builder.max_batch_size = batch_size
+        config.max_workspace_size = 1<<40
+        config.set_flag(trt.BuilderFlag.INT8)
+
+        # config.set_flag(trt.BuilderFlag.FP16)
+        # config.set_flag(trt.BuilderFlag.STRICT_TYPES)
+        
+        config.int8_calibrator = calib
+        network = builder.create_network(1)
+        parser = trt.OnnxParser(network, TRT_LOGGER)
+        # parse ONNX
+        with open(onnx_file_path, 'rb') as model:
+            print('Beginning ONNX file parsing')
+            parser.parse(model.read())
+        print('Completed parsing of ONNX file')
+
+        # Build engine and do int8 calibration.
+        print('Building an engine...')
+        engine = builder.build_serialized_network(network, config)
+        print("Completed creating Engine")
+        return engine
